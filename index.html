@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>English Exam – Units 5 & 6</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1d1b3a;--bg:#f2f0ff;--card:#fff;--blue:#3b4cff;--sun:#ffd23f;--line:#d9d5f5;--bad:#d1242f;--ok:#1a7f37}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 'Space Grotesk',system-ui,sans-serif;user-select:none;-webkit-user-select:none}
+input[type=text],textarea{user-select:text;-webkit-user-select:text}
+textarea,select{width:100%;padding:10px 12px;border:2px solid var(--ink);border-radius:8px;font:inherit;background:#fff;color:var(--ink)}
+textarea{min-height:130px;resize:vertical}
+.wc{font-size:.85rem;opacity:.7;text-align:right}
+.wrap{max-width:760px;margin:0 auto;padding:16px}
+h1{font-size:2rem;line-height:1.1;margin:.2em 0}
+h2{font-size:1.25rem;margin:0 0 4px}
+.card{background:var(--card);border:2px solid var(--ink);border-radius:14px;padding:20px;margin:16px 0;box-shadow:5px 5px 0 var(--ink)}
+.hero{background:var(--blue);color:#fff}
+.hero p{margin:.4em 0}
+label.f{display:block;font-weight:700;margin:12px 0 4px}
+input[type=text]{width:100%;padding:10px 12px;border:2px solid var(--ink);border-radius:8px;font:inherit}
+button{font:inherit;font-weight:700;background:var(--sun);color:var(--ink);border:2px solid var(--ink);border-radius:10px;padding:12px 22px;cursor:pointer;box-shadow:3px 3px 0 var(--ink)}
+button:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink)}
+button:disabled{opacity:.5;cursor:wait}
+:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+ul.rules{padding-left:20px;margin:8px 0}
+#bar{position:sticky;top:0;z-index:5;background:var(--ink);color:#fff;display:flex;justify-content:space-between;gap:8px;padding:10px 16px;font-weight:700;flex-wrap:wrap}
+#bar .warn{color:var(--sun)}
+.q{padding:12px 0;border-top:1px dashed var(--line)}
+.q:first-of-type{border-top:0}
+.q p{margin:0 0 8px;font-weight:500}
+.opt{display:flex;align-items:center;gap:10px;padding:8px 10px;margin:4px 0;border:2px solid var(--line);border-radius:8px;cursor:pointer}
+.opt:has(input:checked){border-color:var(--blue);background:#eceeff}
+.opt input{accent-color:var(--blue);width:18px;height:18px}
+.text{background:#fffbe6;border-left:6px solid var(--sun);padding:12px 16px;border-radius:6px;white-space:pre-line;font-family:Georgia,serif}
+#modal{position:fixed;inset:0;background:rgba(29,27,58,.85);display:none;align-items:center;justify-content:center;z-index:10;padding:20px}
+#modal .card{max-width:420px;text-align:center}
+.big{font-size:3.5rem;font-weight:700;line-height:1}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<section id="intro" class="card hero">
+  <h1>English Exam<br>Units 5 &amp; 6</h1>
+  <p>Stars of sound · Explore — Grammar, Vocabulary, Reading &amp; Writing</p>
+  <label class="f" for="nombre">Full name</label>
+  <input type="text" id="nombre" autocomplete="off" style="color:#1d1b3a">
+  <label class="f" for="curso">Course / age</label>
+  <input type="text" id="curso" autocomplete="off" style="color:#1d1b3a">
+  <ul class="rules">
+    <li>Time: <b id="dur">80</b> minutes. The exam is sent automatically when time is up.</li>
+    <li><b>Do not leave this tab or window.</b> You can leave <b id="maxs">3</b> times at most. If you leave one more time, the exam is sent automatically.</li>
+    <li>You can send it only once. Copy and paste are blocked.</li>
+  </ul>
+  <button id="start" disabled>Loading…</button>
+  <p id="err" class="warn hide"></p>
+</section>
+
+<div id="bar" class="hide"><span>⏱ <span id="timer">--:--</span></span><span id="prog">0/0 answered</span><span id="exits">Exits: 0/3</span></div>
+<form id="exam" class="hide" onsubmit="return false"></form>
+<div id="actions" class="card hide"><button id="send">Send exam</button></div>
+
+<section id="done" class="card hide"></section>
+</div>
+
+<div id="modal"><div class="card">
+  <h2>⚠ You left the exam</h2>
+  <p id="mtxt"></p>
+  <button id="mok">Back to the exam</button>
+</div></div>
+
+<script>
+let CFG, DATA, exits=0, left=false, sent=false, secs=0, tick, startTs, total=0;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const API_URL='https://script.google.com/macros/s/AKfycbzDEJLM6hr42M3dFSnzQukzVm69Ztex0xm9nlLMEu1B9T6fpaeFXmRFOK9969B6yOvs4Q/exec'; // termina en /exec
+
+fetch(API_URL).then(r=>r.json()).then(d=>{
+  DATA=d.sections; CFG=d.config; total=DATA.reduce((a,s)=>a+s.qs.length,0);
+  $('dur').textContent=CFG.duracionMin; $('maxs').textContent=CFG.maxSalidas;
+  $('start').disabled=false; $('start').textContent='Start exam';
+}).catch(e=>{$('start').textContent='Error loading';showErr('Could not load the exam. Check your connection and reload.')});
+
+function showErr(m){const e=$('err');e.textContent=m;e.classList.remove('hide')}
+
+function render(){
+  let h='';
+  DATA.forEach(s=>{
+    h+=`<section class="card"><h2>${esc(s.title)}</h2><p>${esc(s.intro)}</p>`;
+    if(s.text) h+=`<div class="text">${esc(s.text)}</div>`;
+    s.qs.forEach((q,i)=>{
+      h+=`<div class="q"><p>${i+1}. ${esc(q.q)}</p>`;
+      if(q.type==='fill'){
+        h+=`<input type="text" data-id="${q.id}" placeholder="Write your answer" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Answer ${q.id}">`;
+      } else if(q.type==='sel'){
+        h+=`<select data-id="${q.id}" aria-label="Answer ${q.id}"><option value="">— choose —</option>${q.o.map(o=>`<option>${esc(o)}</option>`).join('')}</select>`;
+      } else if(q.type==='open'){
+        h+=`<textarea data-id="${q.id}" data-min="${q.min}" spellcheck="false" aria-label="Writing ${q.id}"></textarea><div class="wc" id="wc-${q.id}">0 words (minimum ${q.min})</div>`;
+      } else q.o.forEach(o=>{
+        h+=`<label class="opt"><input type="radio" name="${q.id}" value="${esc(o)}"> ${esc(o)}</label>`;
+      });
+      h+='</div>';
+    });
+    h+='</section>';
+  });
+  $('exam').innerHTML=h;
+  $('exam').addEventListener('input',progress);$('exam').addEventListener('change',progress);
+}
+
+function collect(){
+  const a={};
+  DATA.forEach(s=>s.qs.forEach(q=>{
+    if(q.type==='fill'||q.type==='sel'||q.type==='open'){a[q.id]=document.querySelector(`[data-id="${q.id}"]`).value}
+    else{const c=document.querySelector(`input[name="${q.id}"]:checked`);a[q.id]=c?c.value:''}
+  }));
+  return a;
+}
+function progress(){
+  const a=collect(); const n=Object.values(a).filter(v=>String(v).trim()).length;
+  $('prog').textContent=`${n}/${total} answered`;
+  document.querySelectorAll('textarea').forEach(t=>{const w=t.value.trim().split(/\s+/).filter(Boolean).length;$('wc-'+t.dataset.id).textContent=`${w} words (minimum ${t.dataset.min})`});
+}
+
+$('start').onclick=()=>{
+  const nombre=$('nombre').value.trim(), curso=$('curso').value.trim();
+  if(nombre.length<3||!curso){showErr('Please write your full name and course/age.');return}
+  render();
+  ['intro'].forEach(i=>$(i).classList.add('hide'));
+  ['bar','exam','actions'].forEach(i=>$(i).classList.remove('hide'));
+  $('exits').textContent=`Exits: 0/${CFG.maxSalidas}`;
+  startTs=Date.now(); secs=CFG.duracionMin*60; progress();
+  tick=setInterval(()=>{
+    secs--; const m=Math.floor(secs/60), s=secs%60;
+    $('timer').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    if(secs<=0) enviar('Automático: tiempo agotado');
+  },1000);
+  armGuards();
+};
+
+/* ---- Control de salidas ---- */
+function armGuards(){
+  const out=()=>{ if(sent||left) return; left=true; exits++;
+    $('exits').textContent=`Exits: ${exits}/${CFG.maxSalidas}`;
+    if(exits>CFG.maxSalidas){ enviar(`Automático: superó ${CFG.maxSalidas} salidas`); return; }
+    const rest=CFG.maxSalidas-exits;
+    $('mtxt').textContent= rest>0
+      ? `Exits used: ${exits} of ${CFG.maxSalidas}. You have ${rest} left. After that, your exam will be sent automatically.`
+      : `Exits used: ${exits} of ${CFG.maxSalidas}. This was your last one. If you leave again, your exam will be sent automatically.`;
+    $('modal').style.display='flex';
+  };
+  const back=()=>{ left=false; };
+  document.addEventListener('visibilitychange',()=>document.hidden?out():back());
+  window.addEventListener('blur',out);
+  window.addEventListener('focus',back);
+  document.addEventListener('contextmenu',e=>e.preventDefault());
+  ['copy','cut','paste'].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault()));
+  window.addEventListener('beforeunload',e=>{if(!sent){e.preventDefault();e.returnValue=''}});
+  $('mok').onclick=()=>{$('modal').style.display='none'};
+}
+
+/* ---- Envío ---- */
+$('send').onclick=()=>{
+  const a=collect(), blank=Object.values(a).filter(v=>!String(v).trim()).length;
+  const msg=blank?`You have ${blank} unanswered question(s). Send anyway?`:'Send your exam now?';
+  if(confirm(msg)) enviar('manual');
+};
+
+function enviar(motivo){
+  if(sent) return; sent=true; clearInterval(tick);
+  $('modal').style.display='none';
+  ['bar','exam','actions'].forEach(i=>$(i).classList.add('hide'));
+  $('done').classList.remove('hide'); $('done').innerHTML='<h2>Sending your exam…</h2><p>Please do not close this page.</p>';
+  const payload={nombre:$('nombre').value.trim(),curso:$('curso').value.trim(),answers:collect(),
+    salidas:exits,motivo,segundos:Math.round((Date.now()-startTs)/1000)};
+  const auto=motivo!=='manual';
+  post(payload,auto,motivo);
+}
+function post(payload,auto,motivo){
+  fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)})
+  .then(r=>r.json()).then(r=>{
+    if(!r.ok) throw new Error(r.error||'Server error');
+    let h='<h2>✅ Exam sent</h2>';
+    if(auto) h+=`<p><b>Your exam was sent automatically</b> (${motivo.includes('tiempo')?'time is up':'too many exits from the exam'}).</p>`;
+    if(r.nota!==undefined) h+=`<div class="big">${r.nota}<small>/10</small></div><p>${r.puntos} of ${r.total} correct answers in the automatic parts.</p><p>Your teacher will grade the Writing part and give you your final mark.</p>`;
+    h+='<p>You can close this window. Thank you!</p>';
+    $('done').innerHTML=h;
+  }).catch(e=>{
+    $('done').innerHTML=`<h2>⚠ Could not send</h2><p>${esc(e.message)}. Check your internet and try again. Do not close this page.</p><button id="retry">Try again</button>`;
+    $('retry').onclick=()=>{$('done').innerHTML='<h2>Sending your exam…</h2>';post(payload,auto,motivo)};
+  });
+}
+</script>
+</body>
+</html>
